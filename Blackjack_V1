@@ -1,0 +1,349 @@
+#include <iostream>
+#include <iomanip>
+#include <cstdlib>
+#include <ctime>
+#include <random>
+#include <algorithm>
+
+using namespace std;
+
+//create structure for Card
+struct Card
+{
+    string suitOfCard;
+    string rankOfCard;
+    int cardValue;
+};
+
+//define suits and ranks
+const string suits[] = {"Clubs", "Hearts", "Spades", "Diamonds"};
+const string ranks[] = {"2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King", "Ace"};
+
+//create structure for Player
+struct PlayerInfo
+{
+    string playerName;
+    Card inHand[5]; //max cards 5 cuz I'm adding the 5 card Charlie rule
+    int numCards;
+    int valueInHand;
+    int balance;
+    int wins;
+    int losses;
+    int pushes;
+};
+
+//create structure for the 2 decks of cards
+struct DeckOfCards
+{
+    Card cards[104]; //use 2 decks so 104 total cards
+    int nextCard;
+};
+
+//function to create player
+void createPlayer(PlayerInfo &player) 
+{
+    getline(cin, player.playerName);
+    player.valueInHand = 0;
+    player.numCards = 0;
+    player.balance = 100;
+    player.wins = 0;
+    player.losses = 0;
+    player.pushes = 0;
+}
+
+//function to create dealer
+void createDealer(PlayerInfo &dealer) 
+{
+    dealer.playerName = "Dealer";
+    dealer.valueInHand = 0;
+    dealer.numCards = 0;
+}
+
+//function to create the deck of cards, 2 decks total combined
+void createDeck(DeckOfCards &deck) 
+{
+    int i = 0;
+    
+    //create a deck and loop through 2 decks, each 4 suits and 13 ranks for all the combinations
+    for (int j = 0; j < 2; j++) {
+        for (int k = 0; k < 4; k++) {
+            for (int l = 0; l < 13; l++) {
+                deck.cards[i].suitOfCard = suits[k];
+                deck.cards[i].rankOfCard = ranks[l];
+                if (l < 9) {
+                    deck.cards[i].cardValue = l+2;
+                } else {
+                    deck.cards[i].cardValue = 10; //for face cards
+                }
+                i++;
+            }
+        }
+    }
+    deck.nextCard = 0;
+}
+
+//funstion to shuffle the deck of cards
+void shuffleDeck(DeckOfCards &deck) 
+{
+    // for (int i = 0; i < 104; i++) {
+    //     int j = rand() % 104;
+    //     Card t = deck.cards[i];
+    //     deck.cards[i] = deck.cards[j];
+    //     deck.cards[j] = t;
+    // }
+    //found way to randomly shuffle cards
+    random_device rd;
+    mt19937 gen(rd());
+    shuffle(begin(deck.cards), end(deck.cards), gen);
+
+}
+
+//function to deal the top card
+Card dealCard(DeckOfCards &deck) 
+{
+    return deck.cards[deck.nextCard++];
+}
+
+//function to calculate the value of all cards in the players valueInHand
+int calculateValueInHand(PlayerInfo &player) 
+{
+    int v = 0;
+    int aces = 0; //check for how many aces
+    for (int i = 0; i < player.numCards; i++) {
+        if (player.inHand[i].rankOfCard == "Ace") {
+            aces++;
+        } else {
+            v += player.inHand[i].cardValue;
+        }
+    }
+    
+    //calculate if the aces are going to be calculated as 11 or 1
+    for (int i = 0; i < aces; i++) {
+        if (v + 11 <= 21) {
+            v += 11;
+        } else {
+            v += 1;
+        }
+    }
+    return v;
+}
+
+//boolean functuon to check if player has busted so if hand is above 21
+bool isHandBusted(PlayerInfo &player)
+{
+    return calculateValueInHand(player) > 21;
+}
+
+//boolean function to check for 5 card charlie rule, which is if you have 5 cards without surpassing 21, you automatically win
+bool hasCharlieRuleFive(PlayerInfo &player)
+{
+    return player.numCards == 5 && calculateValueInHand(player) < 22;
+}
+
+//function to show the players hand, and first 2 cards
+void showPlayerHand(PlayerInfo &player)
+{
+    cout << "\nYour hand: " << endl;
+    for (int i = 0; i < player.numCards; i++) {
+        cout << player.inHand[i].rankOfCard << " of " << player.inHand[i].suitOfCard << endl;
+    }
+}
+
+//function to show the dealer's hand and initial card
+void showDealerHand(PlayerInfo &dealer)
+{
+    cout << "\nDealer's hand: " << endl;
+    for (int i = 0; i < dealer.numCards; i++) {
+        cout << dealer.inHand[i].rankOfCard << " of " << dealer.inHand[i].suitOfCard << endl;
+    }
+}
+
+//boolean function to confirm the bet placed by the player
+bool confirmBetPlaced(int playerBet) 
+{
+    char confirmation;
+    cout << "Would you like to confirm you bet of $" << playerBet << " (type y or n)" << endl;
+    cin >> confirmation;
+    
+    while (confirmation != 'y' && confirmation != 'Y' && confirmation != 'n' && confirmation != 'N') {
+        cout << "Oops! Wrong click! Please type y for yes or n for no!" << endl;
+        cin >> confirmation;
+    }
+    
+    if (confirmation == 'y' || confirmation == 'Y') {
+        cout << "Bet has been confirmed! Good luck!" << endl;
+        return true;
+    } else if (confirmation == 'n' || confirmation == 'N') {
+        cout << "Bet has been cancelled!" << endl;
+        return false;
+    }
+}
+
+//function to handle bets by the player
+int handleBets(PlayerInfo &player)
+{
+    int playerBet;
+    cout << "Current Balance: $" << player.balance << endl;
+    cout << "Enter bets:" << endl;
+    cin >> playerBet;
+    bool betLockedIn = confirmBetPlaced(playerBet);
+    if (betLockedIn) {
+        player.balance -= playerBet;
+        return playerBet;
+    }
+}
+
+//funtion to change the balance if the player wins or lsoes
+void changeBalance(PlayerInfo &player, int playerBet, bool w)
+{
+    if (w) {
+        cout << "Congrats! You won $" << playerBet << "!" << endl;
+        player.balance += (playerBet * 2);
+        player.wins++;
+    } else {
+        cout << "Unlucky. You lost $" << playerBet << "." << endl;
+        player.losses++;
+    }
+}
+
+//function to make the players moves, whether to hit or stand
+void playerMove(PlayerInfo &player, DeckOfCards &deck)
+{
+    while (true) {
+        char move;
+        cout << "Your hand value: " << calculateValueInHand(player) << endl;
+        if (calculateValueInHand(player) == 21) {
+            cout << "BLACKJACK! YOU WIN!";
+        } else {
+            cout << "Hit or Stand? (type h or s): " << endl;
+            cin >> move;
+            if (move == 'h' || move == 'H') {
+                player.inHand[player.numCards++] = dealCard(deck);
+                showPlayerHand(player);
+                if (isHandBusted(player)) {
+                    cout << "You busted!" << endl;
+                    break;
+                }
+            } else if (move == 's' || move == 'S') {
+                cout << "You have chosen to stand" << endl;
+                break;
+            } else {
+                cout << "Invalid input, please type h or s only" << endl;
+            }
+        }
+    }
+}
+
+//function to make the dealers moves after the player has selected to stand
+void dealerTurn(PlayerInfo &dealer, DeckOfCards &deck)
+{
+    if (calculateValueInHand(dealer) == 21) {
+        cout << "BLACKJACK! Dealer wins! :(";
+    } else {
+        while (calculateValueInHand(dealer) < 17) {
+            dealer.inHand[dealer.numCards++] = dealCard(deck);
+        }
+    }
+}
+
+//function to find result of cards added at the end and to find who wins
+void findOutcomeOfGame(PlayerInfo &player, PlayerInfo &dealer, int playerBet)
+{
+    int playerTotalValue = calculateValueInHand(player);
+    int dealerTotalValue = calculateValueInHand(dealer);
+    
+    cout << endl;
+    cout << player.playerName << "'s hand total: " << playerTotalValue << endl;
+    cout << "Dealer's hand total: " << dealerTotalValue << endl;
+    
+    if (hasCharlieRuleFive(player)) {
+        cout << "5 Card Charlie! You win!";
+        changeBalance(player, playerBet, true);
+    } else if (playerTotalValue > 21) {
+        cout << "You busted! Dealer wins :(" << endl;
+        changeBalance(player, playerBet, false);
+    } else if (dealerTotalValue > 21) {
+        cout << "Dealer has busted! YOU WIN!!" << endl;
+        changeBalance(player, playerBet, true);
+    } else if (playerTotalValue > dealerTotalValue) {
+        cout << "YOU WIN!!" << endl;
+        changeBalance(player, playerBet, true);
+    } else if (dealerTotalValue > playerTotalValue) {
+        cout << "Dealer wins :(" << endl;
+        changeBalance(player, playerBet, false);
+    } else if (playerTotalValue == dealerTotalValue) {
+        cout << "You and the dealer have pushed!" << endl;
+        player.pushes++;
+        player.balance += playerBet;
+    }
+}
+
+void displayCurrentStats(PlayerInfo &player) 
+{
+    cout << "Current Stats:" << endl;
+    cout << "Wins: " << player.wins << endl;
+    cout << "Losses: " << player.losses << endl;
+    cout << "Pushes: " << player.pushes << endl;
+    cout << "Current Balance: $" << player.balance << endl;
+    cout << "Current Profit/Losses: $" << player.balance - 100 << endl;
+}
+
+bool playAgain() {
+    char option;
+    cout << endl;
+    cout << "Would you like to play again? (type y or n):" << endl;
+    cin >> option;
+    return (option == 'y' || option == 'Y');
+}
+
+int main() {
+    DeckOfCards deck;
+    createDeck(deck);
+    shuffleDeck(deck);
+    PlayerInfo player;
+    createPlayer(player);
+    PlayerInfo dealer;
+    createDealer(dealer);
+    cout << "Welcome to BlackJack!" << endl;
+    cout << "Who's Playing?" << endl;
+    cout << "Welcome " << player.playerName << "!" << endl;
+    
+    do {
+        int playerBet = handleBets(player);
+        player.inHand[0] = dealCard(deck);
+        dealer.inHand[0] = dealCard(deck);
+        player.inHand[1] = dealCard(deck);
+        dealer.inHand[1] = dealCard(deck);
+        
+        player.numCards = 2;
+        dealer.numCards = 2;
+        
+        showPlayerHand(player);
+        cout << "\nDealer's first card: " << dealer.inHand[0].rankOfCard << " of " << dealer.inHand[0].suitOfCard << endl;
+        
+        playerMove(player, deck);
+        if (isHandBusted(player)) {
+            findOutcomeOfGame(player, dealer, playerBet);
+            continue;
+        }
+    
+        cout << "\nDealer's turn" << endl;
+        dealerTurn(dealer, deck);
+    
+        showDealerHand(dealer);
+        cout << endl;
+        findOutcomeOfGame(player, dealer, playerBet);
+        displayCurrentStats(player);
+    } while (playAgain());
+    
+    cout << endl;
+    cout << "Thanks for playing!" << endl;
+    cout << "Final Stats:" << endl;
+    cout << "Total Wins: " << player.wins << endl;
+    cout << "Total Pushes: " << player.pushes << endl;
+    cout << "Total Losses: " << player.losses << endl;
+    cout << "Final Balance $" << player.balance << endl;
+    cout << "Total Profit/Losses: $" << player.balance - 100 << endl;
+    
+    return 0;
+}
