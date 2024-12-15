@@ -8,7 +8,7 @@
 
 using namespace std;
 
-// Card class
+//class for the card
 class Card {
 public:
     string suitOfCard;
@@ -17,21 +17,20 @@ public:
 
     Card(string suit, string rank, int value) : suitOfCard(suit), rankOfCard(rank), cardValue(value) {}
 
-    // Overload the << operator to print cards easily
+    //overload the << operator to print the cards easily
     friend ostream& operator<<(ostream& os, const Card& card) {
         os << card.rankOfCard << " of " << card.suitOfCard;
         return os;
     }
 };
 
-// DeckOfCards class
+//class for the deck of cards
 class DeckOfCards {
 public:
     vector<Card> cards;
     int nextCard = 0;
 
     DeckOfCards() {
-        // Create 2 decks of 52 cards
         const string suits[] = {
             "Clubs", 
             "Hearts", 
@@ -53,13 +52,15 @@ public:
             "Queen", 
             "King", 
             "Ace"
+            
         };
 
-        // Create the deck for the game
+        //create the deck for the game
         for (int j = 0; j < 2; j++) {
             for (int k = 0; k < 4; k++) {
                 for (int l = 0; l < 13; l++) {
-                    int cardValue = (l < 9) ? (l + 2) : 10; // Face cards count as 10
+                    //identify that face cards count as 10
+                    int cardValue = (l < 9) ? (l + 2) : 10; 
                     cards.push_back(Card(suits[k], ranks[l], cardValue));
                 }
             }
@@ -78,7 +79,7 @@ public:
     }
 };
 
-// Player class
+//class for the player
 class Player {
 public:
     string playerName;
@@ -91,7 +92,7 @@ public:
 
     virtual void takeTurn(DeckOfCards& deck) = 0;
 
-    // Function to calculate the value in hand
+    //function to calculate the value in the hand
     int calculateValueInHand() {
         int value = 0;
         int aces = 0;
@@ -103,7 +104,7 @@ public:
             }
         }
 
-        // Adjust aces to be 1 or 11
+        //for loop to adjust aces to be either 1 or 11
         for (int i = 0; i < aces; i++) {
             if (value + 11 <= 21) {
                 value += 11;
@@ -114,15 +115,27 @@ public:
         return value;
     }
 
-    // Function to show the player's hand
+    //function to show the players hand
     void showHand() {
         for (const auto& card : hand) {
             cout << card << endl;
         }
     }
+    
+    //function to update the balance of the player
+    void changeBalance(int amount, bool win) {
+        if (win) {
+            cout << "Congrats! You won $" << amount << "!" << endl;
+            balance += (amount * 2); // Player wins double the bet
+            wins++;
+        } else {
+            cout << "Unlucky. You lost $" << amount << "." << endl;
+            losses++;
+        }
+    }
 };
 
-// HumanPlayer class
+//class for the player playing
 class HumanPlayer : public Player {
 public:
     void takeTurn(DeckOfCards& deck) override {
@@ -153,7 +166,7 @@ public:
     }
 };
 
-// Dealer class
+//class for the dealer using Player class
 class Dealer : public Player {
 public:
     void takeTurn(DeckOfCards& deck) override {
@@ -163,7 +176,50 @@ public:
     }
 };
 
-// BlackjackGame class
+//function to confirm the bet placed by the player
+bool confirmBetPlaced(int playerBet) {
+    char confirmation;
+    cout << "Would you like to confirm your bet of $" << playerBet << " (type y or n): " << endl;
+    cin >> confirmation;
+
+    while (confirmation != 'y' && confirmation != 'Y' && confirmation != 'n' && confirmation != 'N') {
+        cout << "Oops! Wrong input! Please type y for yes or n for no!" << endl;
+        cin >> confirmation;
+    }
+
+    if (confirmation == 'y' || confirmation == 'Y') {
+        cout << "Bet has been confirmed! Good luck!" << endl;
+        return true;
+    } else if (confirmation == 'n' || confirmation == 'N') {
+        cout << "Bet has been cancelled!" << endl;
+        return false;
+    }
+    return false;
+}
+
+
+//function to handle any bets made by the player
+int handleBets(Player& player) {
+    int playerBet;
+    cout << "Current Balance: $" << player.balance << endl;
+    cout << "Enter your bet: " << endl;
+    cin >> playerBet;
+
+    if (playerBet <= 0 || playerBet > player.balance) {
+        cout << "Invalid bet. Please enter a valid amount!" << endl;
+        return handleBets(player);
+    }
+
+    bool betLockedIn = confirmBetPlaced(playerBet);
+    if (betLockedIn) {
+        player.balance -= playerBet;
+        return playerBet;
+    }
+    
+    return 0;
+}
+
+//class for the game of blackjack
 class BlackjackGame {
 public:
     Player* player;
@@ -174,7 +230,7 @@ public:
         deck.shuffleDeck();
     }
 
-    // Function to calculate value of cards in hand
+    //calculate the value of cards in hand
     int calculateValueInHand(const Player& player) {
         int value = 0;
         int aces = 0;
@@ -186,7 +242,7 @@ public:
             }
         }
 
-        // Adjust aces to be 1 or 11
+        //for loop to adjust the value of the aces to 1 or 11
         for (int i = 0; i < aces; i++) {
             if (value + 11 <= 21) {
                 value += 11;
@@ -198,58 +254,40 @@ public:
         return value;
     }
 
-    // Function to handle bets
-    int handleBets(Player& player) {
-        int playerBet;
-        cout << "Current Balance: $" << player.balance << endl;
-        cout << "Enter your bet: $";
-        cin >> playerBet;
-        bool betLockedIn = confirmBetPlaced(playerBet);
-        if (betLockedIn) {
-            player.balance -= playerBet;
-            return playerBet;
-        }
-        return 0;  // Return 0 if bet is cancelled
-    }
+    //function to play the round
+    void playRound() {
+        int bet = handleBets(*player);
+        if (bet == 0) return;
+        
+        player->hand.push_back(deck.dealCard());
+        dealer.hand.push_back(deck.dealCard());
+        player->hand.push_back(deck.dealCard());
+        dealer.hand.push_back(deck.dealCard());
 
-    bool confirmBetPlaced(int playerBet) {
-        char confirmation;
-        cout << "Would you like to confirm your bet of $" << playerBet << " (type y or n)" << endl;
-        cin >> confirmation;
-
-        while (confirmation != 'y' && confirmation != 'Y' && confirmation != 'n' && confirmation != 'N') {
-            cout << "Oops! Wrong input! Please type y for yes or n for no!" << endl;
-            cin >> confirmation;
-        }
-
-        if (confirmation == 'y' || confirmation == 'Y') {
-            cout << "Bet has been confirmed! Good luck!" << endl;
-            return true;
-        } else {
-            cout << "Bet has been cancelled!" << endl;
-            return false;
-        }
-    }
-
-    // Function to display current stats
-    void displayCurrentStats(Player& player) {
-        cout << "\nCurrent Stats:" << endl;
-        cout << "Wins: " << player.wins << endl;
-        cout << "Losses: " << player.losses << endl;
-        cout << "Pushes: " << player.pushes << endl;
-        cout << "Current Balance: $" << player.balance << endl;
-        cout << "Current Profit/Losses: $" << (player.balance - 100) << endl;
-    }
-
-    // Function to show hands of both player and dealer
-    void showHands() {
-        cout << "\nPlayer's hand: ";
+        cout << "\nYour Hand:" << endl;
         player->showHand();
+        cout << "Dealer's first card: " << dealer.hand[0] << endl;
+
+        player->takeTurn(deck);
+        if (calculateValueInHand(*player) > 21) {
+            return;
+        }
+
+        dealer.takeTurn(deck);
+        showHands();
+        determineWinner(bet);
+        
+        displayCurrentStats(*player);
+    }
+
+private:
+    //function to show the dealer's hand
+    void showHands() {
         cout << "\nDealer's hand: ";
         dealer.showHand();
     }
 
-    // Function to determine the winner
+    //function to determine who won
     void determineWinner(int bet) {
         int playerTotal = player->calculateValueInHand();
         int dealerTotal = dealer.calculateValueInHand();
@@ -259,77 +297,67 @@ public:
 
         if (playerTotal > 21) {
             cout << "Player busted! Dealer wins!" << endl;
-            player->balance -= bet;
-            player->losses++;
+            player->changeBalance(bet, false);
         } else if (dealerTotal > 21 || playerTotal > dealerTotal) {
             cout << "Player wins!" << endl;
-            player->balance += bet;
-            player->wins++;
+            player->changeBalance(bet, true);
         } else if (dealerTotal > playerTotal) {
             cout << "Dealer wins!" << endl;
-            player->balance -= bet;
-            player->losses++;
+            player->changeBalance(bet, false);
         } else {
             cout << "It's a tie!" << endl;
-            player->pushes++;
         }
     }
 
-    // Function to play the round
-    void playRound() {
-        int bet = handleBets(*player);
-        if (bet == 0) return;  // Player cancelled bet, exit round
-
-        player->hand.push_back(deck.dealCard());
-        dealer.hand.push_back(deck.dealCard());
-        player->hand.push_back(deck.dealCard());
-        dealer.hand.push_back(deck.dealCard());
-
-        player->showHand();
-        cout << "\nDealer's first card: " << dealer.hand[0] << endl;
-
-        player->takeTurn(deck);
-        if (player->calculateValueInHand() > 21) {
-            displayCurrentStats(*player);  // Display stats after player's turn
-            return;  // Player busted, end round
-        }
-
-        dealer.takeTurn(deck);
-        showHands();
-        determineWinner(bet);
-        
-        // Display stats after round ends
-        displayCurrentStats(*player);
+    //function to handle any bets
+    int handleBet() {
+        int bet;
+        cout << "Enter your bet: " << endl;
+        cin >> bet;
+        player->balance -= bet;
+        return bet;
+    }
+    
+    //function to display the players current stats
+    void displayCurrentStats(Player& player) {
+        cout << "\nCurrent Stats:" << endl;
+        cout << "Wins: " << player.wins << endl;
+        cout << "Losses: " << player.losses << endl;
+        cout << "Pushes: " << player.pushes << endl;
+        cout << "Current Balance: $" << player.balance << endl;
+        cout << "Current Profit/Losses: $" << (player.balance - 100) << endl;
     }
 };
 
-// Main function
+//int main function
 int main() {
-    cout << "Enter player name: ";
+    cout << "Enter player name: " << endl;
     string name;
     cin >> name;
+    
     HumanPlayer human;
     human.playerName = name;
     BlackjackGame game(&human);
 
     while (true) {
         game.playRound();
-        cout << "\nWould you like to play another round? (y/n): ";
+        cout << "\nWould you like to play another round? (y/n): " << endl;
         char option;
         cin >> option;
         if (option == 'n' || option == 'N') {
             break;
         }
     }
-
-    // Final stats
-    cout << "Thanks for playing!" << endl;
+    
+    //display the players final stats
+    cout << "Thanks for playing " << name << "!" << endl;
     cout << "Final Stats:" << endl;
     cout << "Total Wins: " << human.wins << endl;
     cout << "Total Pushes: " << human.pushes << endl;
     cout << "Total Losses: " << human.losses << endl;
     cout << "Final Balance: $" << human.balance << endl;
     cout << "Total Profit/Losses: $" << (human.balance - 100) << endl;
+
 
     return 0;
 }
