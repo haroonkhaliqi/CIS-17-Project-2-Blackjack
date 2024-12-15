@@ -1,0 +1,335 @@
+#include <iostream>
+#include <iomanip>
+#include <cstdlib>
+#include <ctime>
+#include <random>
+#include <algorithm>
+#include <vector>
+
+using namespace std;
+
+// Card class
+class Card {
+public:
+    string suitOfCard;
+    string rankOfCard;
+    int cardValue;
+
+    Card(string suit, string rank, int value) : suitOfCard(suit), rankOfCard(rank), cardValue(value) {}
+
+    // Overload the << operator to print cards easily
+    friend ostream& operator<<(ostream& os, const Card& card) {
+        os << card.rankOfCard << " of " << card.suitOfCard;
+        return os;
+    }
+};
+
+// DeckOfCards class
+class DeckOfCards {
+public:
+    vector<Card> cards;
+    int nextCard = 0;
+
+    DeckOfCards() {
+        // Create 2 decks of 52 cards
+        const string suits[] = {
+            "Clubs", 
+            "Hearts", 
+            "Spades", 
+            "Diamonds"
+        };
+        
+        const string ranks[] = {
+            "2", 
+            "3", 
+            "4", 
+            "5", 
+            "6", 
+            "7", 
+            "8", 
+            "9", 
+            "10", 
+            "Jack", 
+            "Queen", 
+            "King", 
+            "Ace"
+        };
+
+        // Create the deck for the game
+        for (int j = 0; j < 2; j++) {
+            for (int k = 0; k < 4; k++) {
+                for (int l = 0; l < 13; l++) {
+                    int cardValue = (l < 9) ? (l + 2) : 10; // Face cards count as 10
+                    cards.push_back(Card(suits[k], ranks[l], cardValue));
+                }
+            }
+        }
+        shuffleDeck();
+    }
+
+    void shuffleDeck() {
+        random_device rd;
+        mt19937 gen(rd());
+        shuffle(cards.begin(), cards.end(), gen);
+    }
+
+    Card dealCard() {
+        return cards[nextCard++];
+    }
+};
+
+// Player class
+class Player {
+public:
+    string playerName;
+    vector<Card> hand;
+    int valueInHand = 0;
+    int balance = 100;
+    int wins = 0;
+    int losses = 0;
+    int pushes = 0;
+
+    virtual void takeTurn(DeckOfCards& deck) = 0;
+
+    // Function to calculate the value in hand
+    int calculateValueInHand() {
+        int value = 0;
+        int aces = 0;
+        for (const auto& card : hand) {
+            if (card.rankOfCard == "Ace") {
+                aces++;
+            } else {
+                value += card.cardValue;
+            }
+        }
+
+        // Adjust aces to be 1 or 11
+        for (int i = 0; i < aces; i++) {
+            if (value + 11 <= 21) {
+                value += 11;
+            } else {
+                value += 1;
+            }
+        }
+        return value;
+    }
+
+    // Function to show the player's hand
+    void showHand() {
+        for (const auto& card : hand) {
+            cout << card << endl;
+        }
+    }
+};
+
+// HumanPlayer class
+class HumanPlayer : public Player {
+public:
+    void takeTurn(DeckOfCards& deck) override {
+        char move;
+        while (true) {
+            cout << "Your hand value: " << calculateValueInHand() << endl;
+            if (calculateValueInHand() == 21) {
+                cout << "BLACKJACK! YOU WIN!" << endl;
+                break;
+            } else {
+                cout << "Hit or Stand? (type h or s): " << endl;
+                cin >> move;
+                if (move == 'h' || move == 'H') {
+                    hand.push_back(deck.dealCard());
+                    showHand();
+                    if (calculateValueInHand() > 21) {
+                        cout << "You busted!" << endl;
+                        break;
+                    }
+                } else if (move == 's' || move == 'S') {
+                    cout << "You have chosen to stand" << endl;
+                    break;
+                } else {
+                    cout << "Invalid input, please type h or s only" << endl;
+                }
+            }
+        }
+    }
+};
+
+// Dealer class
+class Dealer : public Player {
+public:
+    void takeTurn(DeckOfCards& deck) override {
+        while (calculateValueInHand() < 17) {
+            hand.push_back(deck.dealCard());
+        }
+    }
+};
+
+// BlackjackGame class
+class BlackjackGame {
+public:
+    Player* player;
+    Dealer dealer;
+    DeckOfCards deck;
+
+    BlackjackGame(Player* p) : player(p) {
+        deck.shuffleDeck();
+    }
+
+    // Function to calculate value of cards in hand
+    int calculateValueInHand(const Player& player) {
+        int value = 0;
+        int aces = 0;
+        for (const auto& card : player.hand) {
+            if (card.rankOfCard == "Ace") {
+                aces++;
+            } else {
+                value += card.cardValue;
+            }
+        }
+
+        // Adjust aces to be 1 or 11
+        for (int i = 0; i < aces; i++) {
+            if (value + 11 <= 21) {
+                value += 11;
+            } else {
+                value += 1;
+            }
+        }
+
+        return value;
+    }
+
+    // Function to handle bets
+    int handleBets(Player& player) {
+        int playerBet;
+        cout << "Current Balance: $" << player.balance << endl;
+        cout << "Enter your bet: $";
+        cin >> playerBet;
+        bool betLockedIn = confirmBetPlaced(playerBet);
+        if (betLockedIn) {
+            player.balance -= playerBet;
+            return playerBet;
+        }
+        return 0;  // Return 0 if bet is cancelled
+    }
+
+    bool confirmBetPlaced(int playerBet) {
+        char confirmation;
+        cout << "Would you like to confirm your bet of $" << playerBet << " (type y or n)" << endl;
+        cin >> confirmation;
+
+        while (confirmation != 'y' && confirmation != 'Y' && confirmation != 'n' && confirmation != 'N') {
+            cout << "Oops! Wrong input! Please type y for yes or n for no!" << endl;
+            cin >> confirmation;
+        }
+
+        if (confirmation == 'y' || confirmation == 'Y') {
+            cout << "Bet has been confirmed! Good luck!" << endl;
+            return true;
+        } else {
+            cout << "Bet has been cancelled!" << endl;
+            return false;
+        }
+    }
+
+    // Function to display current stats
+    void displayCurrentStats(Player& player) {
+        cout << "\nCurrent Stats:" << endl;
+        cout << "Wins: " << player.wins << endl;
+        cout << "Losses: " << player.losses << endl;
+        cout << "Pushes: " << player.pushes << endl;
+        cout << "Current Balance: $" << player.balance << endl;
+        cout << "Current Profit/Losses: $" << (player.balance - 100) << endl;
+    }
+
+    // Function to show hands of both player and dealer
+    void showHands() {
+        cout << "\nPlayer's hand: ";
+        player->showHand();
+        cout << "\nDealer's hand: ";
+        dealer.showHand();
+    }
+
+    // Function to determine the winner
+    void determineWinner(int bet) {
+        int playerTotal = player->calculateValueInHand();
+        int dealerTotal = dealer.calculateValueInHand();
+
+        cout << "\nPlayer's total: " << playerTotal << endl;
+        cout << "Dealer's total: " << dealerTotal << endl;
+
+        if (playerTotal > 21) {
+            cout << "Player busted! Dealer wins!" << endl;
+            player->balance -= bet;
+            player->losses++;
+        } else if (dealerTotal > 21 || playerTotal > dealerTotal) {
+            cout << "Player wins!" << endl;
+            player->balance += bet;
+            player->wins++;
+        } else if (dealerTotal > playerTotal) {
+            cout << "Dealer wins!" << endl;
+            player->balance -= bet;
+            player->losses++;
+        } else {
+            cout << "It's a tie!" << endl;
+            player->pushes++;
+        }
+    }
+
+    // Function to play the round
+    void playRound() {
+        int bet = handleBets(*player);
+        if (bet == 0) return;  // Player cancelled bet, exit round
+
+        player->hand.push_back(deck.dealCard());
+        dealer.hand.push_back(deck.dealCard());
+        player->hand.push_back(deck.dealCard());
+        dealer.hand.push_back(deck.dealCard());
+
+        player->showHand();
+        cout << "\nDealer's first card: " << dealer.hand[0] << endl;
+
+        player->takeTurn(deck);
+        if (player->calculateValueInHand() > 21) {
+            displayCurrentStats(*player);  // Display stats after player's turn
+            return;  // Player busted, end round
+        }
+
+        dealer.takeTurn(deck);
+        showHands();
+        determineWinner(bet);
+        
+        // Display stats after round ends
+        displayCurrentStats(*player);
+    }
+};
+
+// Main function
+int main() {
+    cout << "Enter player name: ";
+    string name;
+    cin >> name;
+    HumanPlayer human;
+    human.playerName = name;
+    BlackjackGame game(&human);
+
+    while (true) {
+        game.playRound();
+        cout << "\nWould you like to play another round? (y/n): ";
+        char option;
+        cin >> option;
+        if (option == 'n' || option == 'N') {
+            break;
+        }
+    }
+
+    // Final stats
+    cout << "Thanks for playing!" << endl;
+    cout << "Final Stats:" << endl;
+    cout << "Total Wins: " << human.wins << endl;
+    cout << "Total Pushes: " << human.pushes << endl;
+    cout << "Total Losses: " << human.losses << endl;
+    cout << "Final Balance: $" << human.balance << endl;
+    cout << "Total Profit/Losses: $" << (human.balance - 100) << endl;
+
+    return 0;
+}
