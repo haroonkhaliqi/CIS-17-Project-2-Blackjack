@@ -1,0 +1,910 @@
+#include <iostream>
+#include <iomanip>
+#include <cstdlib>
+#include <ctime>
+#include <random>
+#include <algorithm>
+#include <vector>
+
+using namespace std;
+
+
+class Player;
+class Achievements;
+
+//class for the card
+class Card {
+public:
+    string suitOfCard;
+    string rankOfCard;
+    int cardValue;
+    
+
+    Card(string suit, string rank, int value) : suitOfCard(suit), rankOfCard(rank), cardValue(value) {}
+
+    //overload the << operator to print the cards easily
+    friend ostream& operator<<(ostream& os, const Card& card) {
+        os << card.rankOfCard << " of " << card.suitOfCard;
+        return os;
+    }
+};
+
+//class for the deck of cards
+class DeckOfCards {
+public:
+    vector<Card> cards;
+    int nextCard = 0;
+
+    DeckOfCards() {
+        const string suits[] = {
+            "Clubs", 
+            "Hearts", 
+            "Spades", 
+            "Diamonds"
+        };
+        
+        const string ranks[] = {
+            "2", 
+            "3", 
+            "4", 
+            "5", 
+            "6", 
+            "7", 
+            "8", 
+            "9", 
+            "10", 
+            "Jack", 
+            "Queen", 
+            "King", 
+            "Ace"
+            
+        };
+
+        //create the deck for the game
+        for (int j = 0; j < 2; j++) {
+            for (int k = 0; k < 4; k++) {
+                for (int l = 0; l < 13; l++) {
+                    //identify that face cards count as 10
+                    int cardValue = (l < 9) ? (l + 2) : 10; 
+                    cards.push_back(Card(suits[k], ranks[l], cardValue));
+                }
+            }
+        }
+        shuffleDeck();
+    }
+
+    void shuffleDeck() {
+        random_device rd;
+        mt19937 gen(rd());
+        shuffle(cards.begin(), cards.end(), gen);
+    }
+
+    Card dealCard() {
+        return cards[nextCard++];
+    }
+};
+
+//class for achievements
+class Achievements {
+public:
+    bool firstBlackjack = false;
+    int winsInARow = 0;
+    int maxWinsInARow = 0;
+    bool profitOver100 = false;
+    bool firstWin = false;
+    bool fiveWins = false;
+    bool tenWins = false;
+    bool fifteenWins = false;
+    bool twentyFiveWins = false;
+    bool fiftyWins = false;
+    bool hundredWins = false;
+    bool perfectRound = false;
+    bool nothingElseNeeded = false;
+    bool doubleBlackjack = false;
+    bool highRoller = false;
+    bool riskyGambla = false;
+
+    //call ot function to check for achievements
+    void checkAchievements(Player& player, bool blackjack, bool drewCards, bool exactly21);
+};
+
+//class for the player
+class Player {
+public:
+    string playerName;
+    vector<Card> hand;
+    int valueInHand = 0;
+    int balance = 100;
+    int wins = 0;
+    int losses = 0;
+    int pushes = 0;
+    int winsInARow = 0; 
+    double previousBalance = 100;
+    bool lastRoundBlackjack = false;
+    Achievements achievements; 
+    
+
+    virtual void takeTurn(DeckOfCards& deck) = 0;
+
+    //function to calculate the value in the hand
+    int calculateValueInHand() {
+        int value = 0;
+        int aces = 0;
+        for (const auto& card : hand) {
+            if (card.rankOfCard == "Ace") {
+                aces++;
+            } else {
+                value += card.cardValue;
+            }
+        }
+
+        //for loop to adjust aces to be either 1 or 11
+        for (int i = 0; i < aces; i++) {
+            if (value + 11 <= 21) {
+                value += 11;
+            } else {
+                value += 1;
+            }
+        }
+        return value;
+    }
+
+    //function to show the players hand
+    void showHand() {
+        for (const auto& card : hand) {
+            cout << card << endl;
+        }
+    }
+    
+    //function to update the balance of the player
+    void changeBalance(int amount, bool win) {
+        bool blackjack = false; 
+        bool drewCards = false;
+        bool exactly21 = false; 
+    
+        // Check if the player has blackjack or if they drew cards
+        if (calculateValueInHand() == 21 && hand.size() == 2) {
+            blackjack = true;
+        }
+        
+        // Check if the player drew any cards (you could modify this check)
+        if (hand.size() > 2) {
+            drewCards = true;
+        }
+    
+        // Check if the player's hand is exactly 21
+        if (calculateValueInHand() == 21) {
+            exactly21 = true;
+        }
+        
+        if (win) {
+            cout << "Congrats! You won $" << amount << "!" << endl;
+            balance += (amount * 2);
+            wins++;
+            winsInARow++;
+        } else {
+            cout << "Unlucky. You lost $" << amount << "." << endl;
+            losses++;
+            winsInARow = 0;
+        }
+        
+    achievements.checkAchievements(*this, blackjack, drewCards, exactly21);
+    }
+};
+
+
+//class for the player playing
+class HumanPlayer : public Player {
+public:
+    void takeTurn(DeckOfCards& deck) override {
+        char move;
+        while (true) {
+            cout << "Your hand value: " << calculateValueInHand() << endl;
+            if (calculateValueInHand() == 21) {
+                cout << "BLACKJACK! YOU WIN!" << endl;
+                break;
+            } else {
+                cout << "Hit or Stand? (type h or s): " << endl;
+                cin >> move;
+                if (move == 'h' || move == 'H') {
+                    hand.push_back(deck.dealCard());
+                    showHand();
+                    if (calculateValueInHand() > 21) {
+                        cout << "You busted!" << endl;
+                        break;
+                    }
+                } else if (move == 's' || move == 'S') {
+                    cout << "You have chosen to stand" << endl;
+                    break;
+                } else {
+                    cout << "Invalid input, please type h or s only" << endl;
+                }
+            }
+        }
+    }
+};
+
+//class for the dealer using Player class
+class Dealer : public Player {
+public:
+    void takeTurn(DeckOfCards& deck) override {
+        while (calculateValueInHand() < 17) {
+            hand.push_back(deck.dealCard());
+        }
+    }
+};
+
+//function to check for achievements
+void Achievements::checkAchievements(Player& player, bool blackjack, bool drewCards, bool exactly21) {
+    //check for unlokcing of achievement for first blackjack
+    if (player.wins >= 1 && !firstBlackjack) {
+        firstBlackjack = true;
+        cout << "ACHIEVEMENT UNLOCKED" << endl;
+        cout << player.playerName << " unlocked: First Blackjack!" << endl;
+    }
+
+    //check for unlocking of achievements for wins in a row
+    if (player.winsInARow >= 3 && player.winsInARow < 5) {
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: 3 Wins in a Row!" << endl;
+    }
+    
+    if (player.winsInARow >= 5 && player.winsInARow < 10) {
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: 5 Wins in a Row!" << endl;
+    }
+    
+    if (player.winsInARow >= 10) {
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: 10 Wins in a Row!" << endl;
+    }
+
+    //check for unlocking of achievement that profit is above $100
+    if (player.balance >= 200 && !profitOver100) {
+        profitOver100 = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: Profit of $100!" << endl;
+    }
+    
+    //check for unlocking of achievements of any winning milestones
+    if (player.wins >= 1 && !firstWin) {
+        firstWin = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: First Win!" << endl;
+    }
+    
+    if (player.wins >= 5 && !fiveWins) {
+        fiveWins = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: 5 Wins!" << endl;
+    }
+    
+    if (player.wins >= 10 && !tenWins) {
+        tenWins = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: 10 Wins!" << endl;
+    }
+    
+    if (player.wins >= 15 && !fifteenWins) {
+        fifteenWins = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: 15 Wins!" << endl;
+    }
+    
+    if (player.wins >= 25 && !twentyFiveWins) {
+        twentyFiveWins = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: 25 Wins!" << endl;
+    }
+    
+    if (player.wins >= 50 && !fiftyWins) {
+        fiftyWins = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: 50 Wins!" << endl;
+    }
+    
+    if (player.wins >= 100 && !hundredWins) {
+        hundredWins = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: 100 Wins!" << endl;
+    }
+    
+    if (exactly21 && !blackjack && !perfectRound) {
+        perfectRound = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: Perfect Round Draw exactly 21!" << endl;
+    }
+    
+    if (!drewCards && !nothingElseNeeded) {
+        nothingElseNeeded = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: It's that easy? Win without drawing any cards!" << endl;
+    }
+    
+    if (blackjack && player.lastRoundBlackjack && !doubleBlackjack) {
+        doubleBlackjack = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: BACK 2 BACK Double Blackjack!" << endl;
+    }
+    
+    if (player.balance >= 150 && !highRoller) {
+        highRoller = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: High Roller!" << endl;
+    }
+    
+    if (player.balance == player.previousBalance && !riskyGambla) {
+        riskyGambla = true;
+        cout << "ACHIEVEMENT UNLOCKED!" << endl;
+        cout << player.playerName << " unlocked: Risky Gambla!" << endl;
+    }
+    
+    player.lastRoundBlackjack = blackjack;
+}
+
+
+//function to confirm the bet placed by the player
+bool confirmBetPlaced(int playerBet) {
+    char confirmation;
+    cout << "Would you like to confirm your bet of $" << playerBet << " (type y or n): " << endl;
+    cin >> confirmation;
+
+    while (confirmation != 'y' && confirmation != 'Y' && confirmation != 'n' && confirmation != 'N') {
+        cout << "Oops! Wrong input! Please type y for yes or n for no!" << endl;
+        cin >> confirmation;
+    }
+
+    if (confirmation == 'y' || confirmation == 'Y') {
+        cout << "Bet has been confirmed! Good luck!" << endl;
+        return true;
+    } else if (confirmation == 'n' || confirmation == 'N') {
+        cout << "Bet has been cancelled!" << endl;
+        return false;
+    }
+    return false;
+}
+
+
+//function to handle any bets made by the player
+int handleBets(Player& player) {
+    int playerBet;
+    cout << "Current Balance: $" << player.balance << endl;
+    cout << "Enter your bet: " << endl;
+    cin >> playerBet;
+
+    if (playerBet <= 0 || playerBet > player.balance) {
+        cout << "Invalid bet. Please enter a valid amount!" << endl;
+        return handleBets(player);
+    }
+
+    bool betLockedIn = confirmBetPlaced(playerBet);
+    if (betLockedIn) {
+        player.balance -= playerBet;
+        return playerBet;
+    }
+    
+    return 0;
+}
+
+//class for the game of blackjack
+class BlackjackGame {
+public:
+    Player* player;
+    Dealer dealer;
+    DeckOfCards deck;
+
+    BlackjackGame(Player* p) : player(p) {
+        deck.shuffleDeck();
+    }
+
+    //calculate the value of cards in hand
+    int calculateValueInHand(const Player& player) {
+        int value = 0;
+        int aces = 0;
+        for (const auto& card : player.hand) {
+            if (card.rankOfCard == "Ace") {
+                aces++;
+            } else {
+                value += card.cardValue;
+            }
+        }
+
+        //for loop to adjust the value of the aces to 1 or 11
+        for (int i = 0; i < aces; i++) {
+            if (value + 11 <= 21) {
+                value += 11;
+            } else {
+                value += 1;
+            }
+        }
+
+        return value;
+    }
+
+    //function to play the round
+    void playRound() {
+        int bet = handleBets(*player);
+        if (bet == 0) return;
+        
+        player->hand.push_back(deck.dealCard());
+        dealer.hand.push_back(deck.dealCard());
+        player->hand.push_back(deck.dealCard());
+        dealer.hand.push_back(deck.dealCard());
+
+        cout << "\nYour Hand:" << endl;
+        player->showHand();
+        cout << "Dealer's first card: " << dealer.hand[0] << endl;
+
+        //if statement asking if the player would like to double down
+        if (player->hand.size() == 2 && calculateValueInHand(*player) == 9 || calculateValueInHand(*player) == 10 || calculateValueInHand(*player) == 11) {
+            char doubleDownChoice;
+            cout << "Would you like to Double Down? (Enter 'y' or 'n'): ";
+            cin >> doubleDownChoice;
+
+            if (doubleDownChoice == 'y' || doubleDownChoice == 'Y') {
+                bet *= 2;
+                player->balance -= bet; 
+                cout << "You have doubled your bet! Your new bet: $" << bet << endl;
+
+                //deal another card to the player
+                player->hand.push_back(deck.dealCard());
+                player->showHand();
+            } else if (doubleDownChoice == 'n' || doubleDownChoice == 'N') {
+                cout << "You chose not to double down" << endl;
+            }
+        }
+        
+        //players turn
+        player->takeTurn(deck);
+        if (calculateValueInHand(*player) > 21) {
+            return;
+        }
+
+        dealer.takeTurn(deck);
+        showHands();
+        determineWinner(bet);
+        
+        displayCurrentStats(*player);
+    }
+
+private:
+    //function to show the dealer's hand
+    void showHands() {
+        cout << "\nDealer's hand: ";
+        dealer.showHand();
+    }
+
+    //function to determine who won
+    void determineWinner(int bet) {
+        int playerTotal = player->calculateValueInHand();
+        int dealerTotal = dealer.calculateValueInHand();
+
+        cout << "\nPlayer's total: " << playerTotal << endl;
+        cout << "Dealer's total: " << dealerTotal << endl;
+
+        if (playerTotal > 21) {
+            cout << "Player busted! Dealer wins!" << endl;
+            player->changeBalance(bet, false);
+        } else if (dealerTotal > 21 || playerTotal > dealerTotal) {
+            cout << "Player wins!" << endl;
+            player->changeBalance(bet, true);
+        } else if (dealerTotal > playerTotal) {
+            cout << "Dealer wins!" << endl;
+            player->changeBalance(bet, false);
+        } else {
+            cout << "It's a tie!" << endl;
+        }
+    }
+
+    //function to handle any bets
+    int handleBet() {
+        int bet;
+        cout << "Enter your bet: " << endl;
+        cin >> bet;
+        player->balance -= bet;
+        return bet;
+    }
+    
+    //function to display the players current stats
+    void displayCurrentStats(Player& player) {
+        cout << "\nCurrent Stats:" << endl;
+        cout << "Wins: " << player.wins << endl;
+        cout << "Losses: " << player.losses << endl;
+        cout << "Pushes: " << player.pushes << endl;
+        cout << "Current Balance: $" << player.balance << endl;
+        cout << "Current Profit/Losses: $" << (player.balance - 100) << endl;
+    }
+};
+
+//class for a multiplayer game of blackjack
+class MultiplayerGame {
+public:
+    vector<Player*> players;
+    Dealer dealer;
+    DeckOfCards deck;
+
+    MultiplayerGame(vector<Player*> p) : players(p) {
+        deck.shuffleDeck();
+    }
+
+    //function to play a round for all participating players
+    void playRound() {
+        int bet;
+        for (auto player : players) {
+            bet = handleBets(*player);
+            if (bet == 0) return;
+
+            //deal 2 cards to each player
+            player->hand.push_back(deck.dealCard());
+            dealer.hand.push_back(deck.dealCard());
+            player->hand.push_back(deck.dealCard());
+            dealer.hand.push_back(deck.dealCard());
+
+            cout << "\n" << player->playerName << "'s Hand:" << endl;
+            player->showHand();
+            cout << "Dealer's first card: " << dealer.hand[0] << endl;
+
+            //if statement to handle double downss
+            if (player->hand.size() == 2 && (player->calculateValueInHand() == 9 || player->calculateValueInHand() == 10 || player->calculateValueInHand() == 11)) {
+                char doubleDownChoice;
+                cout << "Would you like to Double Down? (y/n): ";
+                cin >> doubleDownChoice;
+
+                if (doubleDownChoice == 'y' || doubleDownChoice == 'Y') {
+                    bet *= 2;
+                    player->balance -= bet; 
+                    cout << "You have doubled your bet! Your new bet: $" << bet << endl;
+    
+                    //deal another card to the player
+                    player->hand.push_back(deck.dealCard());
+                    player->showHand();
+                } else if (doubleDownChoice == 'n' || doubleDownChoice == 'N') {
+                    cout << "You chose not to double down" << endl;
+                }
+            }
+
+            //players turn
+            player->takeTurn(deck);
+            if (player->calculateValueInHand() > 21) {
+                return;
+            }
+
+            dealer.takeTurn(deck);
+            showHands();
+            determineWinner(bet, player);
+            displayCurrentStats(*player);
+        }
+    }
+        
+    //function to display final stats for each player
+    void displayFinalStats() {
+        for (auto player : players) {
+            cout << "\nFinal Stats for " << player->playerName << ":" << endl;
+            cout << "Total Wins: " << player->wins << endl;
+            cout << "Total Losses: " << player->losses << endl;
+            cout << "Total Pushes: " << player->pushes << endl;
+            cout << "Final Balance: $" << player->balance << endl;
+            cout << "Total Profit/Losses: $" << (player->balance - 100) << endl;
+        }
+    }
+
+private:
+    void showHands() {
+        cout << "\nDealer's hand: ";
+        dealer.showHand();
+    }
+
+    void determineWinner(int bet, Player* player) {
+        int playerTotal = player->calculateValueInHand();
+        int dealerTotal = dealer.calculateValueInHand();
+
+        cout << "\n" << player->playerName << "'s total: " << playerTotal << endl;
+        cout << "Dealer's total: " << dealerTotal << endl;
+
+        if (playerTotal > 21) {
+            cout << player->playerName << " busted! Dealer wins!" << endl;
+            player->changeBalance(bet, false);
+        } else if (dealerTotal > 21 || playerTotal > dealerTotal) {
+            cout << player->playerName << " wins!" << endl;
+            player->changeBalance(bet, true);
+        } else if (dealerTotal > playerTotal) {
+            cout << "Dealer wins!" << endl;
+            player->changeBalance(bet, false);
+        } else {
+            cout << "It's a tie!" << endl;
+            player->pushes++;
+        }
+    }
+
+    void displayCurrentStats(Player& player) {
+        cout << "\n" << player.playerName << "'s Stats:" << endl;
+        cout << "Wins: " << player.wins << endl;
+        cout << "Losses: " << player.losses << endl;
+        cout << "Pushes: " << player.pushes << endl;
+        cout << "Current Balance: $" << player.balance << endl;
+        cout << "Current Profit/Losses: $" << (player.balance - 100) << endl;
+    }
+};
+
+
+//class for alternate game style of blackjack, Kobe Blackjack which goes up to 24 and 8 is treated like an ace
+class KobeBlackjack {
+public:
+    Player* player;
+    Dealer dealer;
+    DeckOfCards deck;
+
+    KobeBlackjack(Player* p) : player(p) {
+        deck.shuffleDeck();
+    }
+
+    //function to calculate hand value for Kobe Blackjack
+    int calculateValueInHand(const Player& p) {
+        int totalValue = 0;
+        int aceCount = 0;
+        int eightCount = 0;
+        
+        for (const auto& card : p.hand) {
+            if (card.rankOfCard == "Ace") {
+                aceCount++;
+            } else if (card.rankOfCard == "8") {
+                eightCount++;
+            } else {
+                totalValue += card.cardValue;
+            }
+        }
+
+        //see if aces are values as 1 or 11
+        for (int i = 0; i < aceCount; ++i) {
+            if (totalValue + 11 <= 24) {
+                totalValue += 11;
+            } else {
+                totalValue += 1;
+            }
+        }
+        
+        //see if eights are values as 1 or 8
+        for (int i = 0; i < eightCount; ++i) {
+            if (totalValue + 8 <= 24) {
+                totalValue += 8;
+            } else {
+                totalValue += 1;
+            }
+        }
+
+        return totalValue;
+    }
+
+    //function to play round of Kobe Blackjack
+    void playRound() {
+        int bet = handleBet();
+        if (bet == 0) return;
+
+        //deal first 2 cards each
+        player->hand.push_back(deck.dealCard());
+        dealer.hand.push_back(deck.dealCard());
+        player->hand.push_back(deck.dealCard());
+        dealer.hand.push_back(deck.dealCard());
+
+        cout << "\nYour Hand:" << endl;
+        player->showHand();
+        cout << "Dealer's first card: " << dealer.hand[0] << endl;
+
+        //players turn
+        bool playerBusted = false;
+        while (true) {
+            int playerTotal = calculateValueInHand(*player);
+            cout << "Your hand value: " << playerTotal << endl;
+
+            if (playerTotal > 24) {
+                cout << "You bust! Dealer wins :(" << endl;
+                playerBusted = true;
+                break;
+            }
+
+            if (calculateValueInHand(*player) == 24) {
+                cout << "KOBEJACK! YOU WIN!" << endl;
+                break;
+            } else {
+                cout << "Hit or Stand? (type h or s): " << endl;
+                char move;
+                cin >> move;
+                cin >> move;
+                if (move == 'h' || move == 'H') {
+                    player->hand.push_back(deck.dealCard());
+                } else if (move == 's' || move == 'S') {
+                    cout << "You have chosen to stand" << endl;
+                    break;
+                } else {
+                    cout << "Invalid input, please type h or s only" << endl;
+                }
+            }
+        }
+
+        if (playerBusted) return;
+
+        //dealers turn
+        cout << "Dealer's hand:" << endl;
+        dealer.showHand();
+
+        while (calculateValueInHand(dealer) < 17) {
+            dealer.hand.push_back(deck.dealCard());
+            cout << "Dealer drew: " << dealer.hand.back() << endl;
+        }
+
+        //find outcome and determine the winner
+        int playerTotal = calculateValueInHand(*player);
+        int dealerTotal = calculateValueInHand(dealer);
+
+        cout << "\nDealer's total: " << dealerTotal << endl;
+        cout << "Your total: " << playerTotal << endl;
+
+        if (dealerTotal > 24) {
+            cout << "Dealer busts! You win!" << endl;
+            player->changeBalance(bet, true);
+        } else if (dealerTotal > playerTotal) {
+            cout << "Dealer wins!" << endl;
+            player->changeBalance(bet, false);
+        } else if (dealerTotal < playerTotal) {
+            cout << "You win!" << endl;
+            player->changeBalance(bet, true);
+        } else {
+            cout << "It's a tie!" << endl;
+        }
+
+        displayCurrentStats(*player);
+    }
+
+private:
+    //function to handle any bets
+    int handleBet() {
+        int bet;
+        cout << "Enter your bet: " << endl;
+        cin >> bet;
+        player->balance -= bet;
+        return bet;
+    }
+
+    //function to display the player's current stats
+    void displayCurrentStats(Player& player) {
+        cout << "\nCurrent Stats:" << endl;
+        cout << "Wins: " << player.wins << endl;
+        cout << "Losses: " << player.losses << endl;
+        cout << "Pushes: " << player.pushes << endl;
+        cout << "Current Balance: $" << player.balance << endl;
+        cout << "Current Profit/Losses: $" << (player.balance - 100) << endl;
+    }
+};
+
+
+//int main function
+int main() {
+    cout << "Welcome to Blackjack!" << endl;
+    cout << "Choose your game mode:" << endl;
+    cout << "1. Original Blackjack (Goal: 21)" << endl;
+    cout << "2. Kobe Blackjack (Goal: 24, 8 = 1 or 8)" << endl;
+    
+    int choice;
+    cin >> choice;
+    
+    cout << "Enter player name: " << endl;
+    string name;
+    cin >> name;
+
+    if (choice == 1) {
+        //ask how many players are playing
+        cout << "How many players will be playing?: ";
+        int numPlayers;
+        cin >> numPlayers;
+    
+        vector<Player*> players;
+    
+        if (numPlayers == 1) {
+            HumanPlayer* human = new HumanPlayer();
+            human->playerName = name;
+            players.push_back(human);
+    
+            BlackjackGame game(human);
+            
+            while (true) {
+                game.playRound();
+                cout << "\nWould you like to play another round? (y/n): " << endl;
+                char option;
+                cin >> option;
+                if (option == 'n' || option == 'N') {
+                    break;
+                }
+            }
+    
+            //display final stats for the single player
+            cout << "Thanks for playing " << name << "!" << endl;
+            cout << "Final Stats:" << endl;
+            cout << "Total Wins: " << players[0]->wins << endl;
+            cout << "Total Losses: " << players[0]->losses << endl;
+            cout << "Total Pushes: " << players[0]->pushes << endl;
+            cout << "Final Balance: $" << players[0]->balance << endl;
+            cout << "Total Profit/Losses: $" << (players[0]->balance - 100) << endl;
+    
+            //clean up and delete the players
+            delete players[0];
+    
+        } else if (numPlayers > 1) {
+            for (int i = 0; i < numPlayers; i++) {
+                cout << "Enter name for player " << (i + 1) << ": ";
+                string name;
+                cin >> name;
+                HumanPlayer* human = new HumanPlayer();
+                human->playerName = name;
+                players.push_back(human);
+            }
+    
+            MultiplayerGame game(players);
+            
+            while (true) {
+                game.playRound();
+                cout << "\nWould you like to play another round? (y/n): " << endl;
+                char option;
+                cin >> option;
+                if (option == 'n' || option == 'N') {
+                    break;
+                }
+            }
+    
+            //display the final stats for each player
+            cout << "Thanks for playing!" << endl;
+            for (auto player : players) {
+                cout << "Final Stats for " << player->playerName << ":" << endl;
+                cout << "Total Wins: " << player->wins << endl;
+                cout << "Total Losses: " << player->losses << endl;
+                cout << "Total Pushes: " << player->pushes << endl;
+                cout << "Final Balance: $" << player->balance << endl;
+                cout << "Total Profit/Losses: $" << (player->balance - 100) << endl;
+    
+                delete player;
+            }
+            
+            for (auto player : players) {
+                delete player;
+            }
+        }
+    } else if (choice == 2) {
+        cout << "Welcome to KOBE Blackjack!" << endl;
+        cout << "Rules: " << endl;
+        cout << "1. Goal is to 24 instead of 21" << endl;
+        cout << "2. 8 are like aces and can be 1 or the card value, 8" << endl;
+        cout << "3. No double down " << endl;
+        
+        vector<Player*> players;
+        HumanPlayer* human = new HumanPlayer();
+        human->playerName = name;
+        players.push_back(human);
+
+        KobeBlackjack game(human);
+        
+        while (true) {
+            game.playRound();
+            cout << "\nWould you like to play another round? (y/n): " << endl;
+            char option;
+            cin >> option;
+            if (option == 'n' || option == 'N') {
+                break;
+            }
+        }
+
+        //display final stats for the single player
+        cout << "Thanks for playing " << name << "!" << endl;
+        cout << "Final Stats:" << endl;
+        cout << "Total Wins: " << players[0]->wins << endl;
+        cout << "Total Losses: " << players[0]->losses << endl;
+        cout << "Total Pushes: " << players[0]->pushes << endl;
+        cout << "Final Balance: $" << players[0]->balance << endl;
+        cout << "Total Profit/Losses: $" << (players[0]->balance - 100) << endl;
+
+        //clean up and delete the players
+        delete players[0];
+    } else {
+        cout << "Invalid choice!" << endl;
+    }
+
+    return 0;
+}
